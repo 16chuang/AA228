@@ -47,15 +47,3 @@ class BaselineController(CartPoleController):
 			return 1
 		else:
 			return 0
-
-"""
-Controller used to stabilize cart-pole with Q learning.
-"""
-class QLearningController(CartPoleController):
-	def __init__(self):
-		# TODO: do Q stuff
-		pass
-
-	def calc_response(self, state):
-		# TODO: do Q stuff
-		pass
