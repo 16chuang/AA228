@@ -53,7 +53,7 @@ def main():
 	dtheta_range = {
 		'min': -1.0,
 		'max': 1.0,
-		'num_bins': 6
+		'num_bins': 15
 	}
 	controller = QLearningController(theta_range=theta_range, dtheta_range=dtheta_range, learning_rate=.1, discount=1)
 	# train_controller_until_solved(controller)
@@ -120,7 +120,7 @@ def train_controller_for_episodes(controller, num_episodes):
 		if i % (num_episodes/10) == 0:
 			print("Episode {} finished after {} timesteps with total reward {}".format(i, timesteps+1, reward))
 
-	print("Average reward: {}".format(avg_reward * 1.0 / num_episodes))
+	print("Average reward over training episodes: {}".format(avg_reward * 1.0 / num_episodes))
 
 """
 Continues training a given CartPoleController until it "solves" the environment by achieving an average
@@ -154,7 +154,7 @@ def train_controller_until_solved(controller):
 			# controller.print_Q()
 			print("Episode {}, current average reward: {}".format(num_episodes, avg_reward))
 
-	print("Average reward achieved after {} training episodes: {}".format(avg_reward, num_episodes))
+	print("Average reward over 100 episodes achieved after {} training episodes: {}".format(avg_reward, num_episodes))
 
 """
 Tests a given CartPoleController for NUM_TEST_EPISODES episodes. Prints average reward
