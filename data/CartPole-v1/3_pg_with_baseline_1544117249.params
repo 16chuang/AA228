@@ -1,0 +1,1 @@
+{"env_name": "CartPole-v1", "hidden_sizes": [32, 32], "pi_lr": 0.01, "val_lr": 0.01, "epochs": 50, "batch_size": 5000}

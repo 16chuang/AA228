@@ -21,6 +21,10 @@ import tensorflow as tf
 import numpy as np
 import gym
 from gym.spaces import Discrete, Box
+from logger import Logger
+
+ALGORITHM_NAME = "1_pg_simple"
+REPEAT_TRAINING = 5
 
 def mlp(x, sizes, activation=tf.tanh, output_activation=None):
     # Build a feedforward neural network.
@@ -28,11 +32,9 @@ def mlp(x, sizes, activation=tf.tanh, output_activation=None):
         x = tf.layers.dense(x, units=size, activation=activation)
     return tf.layers.dense(x, units=sizes[-1], activation=output_activation)
 
-def train(env_name='CartPole-v0', hidden_sizes=[32], lr=1e-2, 
+def train(env_name, logger, hidden_sizes=[32], lr=1e-2, 
           epochs=50, batch_size=5000, render=False):
-
     # make environment, check spaces, get obs / act dims
-    print("Making env {}".format(env_name))
     env = gym.make(env_name)
     assert isinstance(env.observation_space, Box), \
         "This example only works for envs with continuous state spaces."
@@ -63,7 +65,14 @@ def train(env_name='CartPole-v0', hidden_sizes=[32], lr=1e-2,
     sess.run(tf.global_variables_initializer())
 
     # for training policy
-    def train_one_epoch():
+    def train_one_epoch(epoch_num):
+        if epoch_num == 0:
+            logger.log_params({'env_name': env_name, 
+                'hidden_sizes': hidden_sizes, 
+                'lr': lr,
+                'epochs': epochs, 
+                'batch_size': batch_size})
+
         # make some empty lists for logging.
         batch_obs = []          # for observations (not reset per episode)
         batch_acts = []         # for actions (not reset per episode)
@@ -104,6 +113,8 @@ def train(env_name='CartPole-v0', hidden_sizes=[32], lr=1e-2,
                 batch_rets.append(ep_ret)
                 batch_lens.append(ep_len)
 
+                logger.save_episode_data([ epoch_num, ep_ret ])
+
                 # the weight for each logprob(a|s) is R(tau)
                 # associate R(tau) with all obs and acts in batch_obs and batch_acts that correspond to this episode
                 batch_weights += [ep_ret] * ep_len
@@ -129,7 +140,7 @@ def train(env_name='CartPole-v0', hidden_sizes=[32], lr=1e-2,
 
     # training loop
     for i in range(epochs):
-        batch_loss, batch_rets, batch_lens = train_one_epoch()
+        batch_loss, batch_rets, batch_lens = train_one_epoch(i)
         print('epoch: %3d \t loss: %.3f \t return: %.3f \t ep_len: %.3f'%
                 (i, batch_loss, np.mean(batch_rets), np.mean(batch_lens)))
 
@@ -141,4 +152,13 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=1e-2)
     args = parser.parse_args()
     print('\nBasic REINFORCE policy gradient.\n')
-    train(env_name=args.env_name, render=args.render, lr=args.lr)
+
+    # Initialize logging
+    logger = Logger(args.env_name, ALGORITHM_NAME)
+
+    for j in range(REPEAT_TRAINING):
+        print('TRAINING RUN {}:'.format(j))
+        train(env_name=args.env_name, render=args.render, lr=args.lr, logger=logger)
+        logger.reset_episode_count()
+
+    logger.log_data()

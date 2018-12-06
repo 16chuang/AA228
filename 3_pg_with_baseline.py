@@ -2,7 +2,8 @@
 Mostly taken from https://github.com/openai/spinningup/blob/master/spinup/examples/pg_math/2_rtg_pg.py
 
 REINFORCE algorithm with weight function with baseline (i.e. vanilla policy gradient): 
-Our baseline is 
+Our baseline is a learned value function which is trained on the discounted sum of rewards
+seen during episodes. 
 
 - Neural network: inputs = observations, outputs = log probabilities of action to take
 - Loss function = gradient of expected return(policy)
@@ -28,6 +29,10 @@ import tensorflow as tf
 import numpy as np
 import gym
 from gym.spaces import Discrete, Box
+from logger import Logger
+
+ALGORITHM_NAME = "3_pg_with_baseline"
+REPEAT_TRAINING = 5
 
 def mlp(x, sizes, activation=tf.tanh, output_activation=None):
     # Build a feedforward neural network.
@@ -46,7 +51,7 @@ def reward_to_go(rews, discount=1):
         rtgs[i] = rews[i] + (discount * rtgs[i+1] if i+1 < n else 0)
     return rtgs
 
-def train(env_name='CartPole-v0', hidden_sizes=[32], pi_lr=1e-2, val_lr=1e-2,
+def train(env_name, logger, hidden_sizes=[32,32], pi_lr=1e-2, val_lr=1e-2,
           epochs=50, batch_size=5000, num_val_iters=80, render=False):
 
     # make environment, check spaces, get obs / act dims
@@ -89,7 +94,15 @@ def train(env_name='CartPole-v0', hidden_sizes=[32], pi_lr=1e-2, val_lr=1e-2,
     sess.run(tf.global_variables_initializer())
 
     # for training policy
-    def train_one_epoch():
+    def train_one_epoch(epoch_num):
+        if epoch_num == 0:
+            logger.log_params({'env_name': env_name, 
+                'hidden_sizes': hidden_sizes, 
+                'pi_lr': pi_lr,
+                'val_lr': val_lr,
+                'epochs': epochs, 
+                'batch_size': batch_size})
+
         # make some empty lists for logging.
         batch_obs = []          # for observations (not reset per episode)
         batch_acts = []         # for actions (not reset per episode)
@@ -130,6 +143,8 @@ def train(env_name='CartPole-v0', hidden_sizes=[32], pi_lr=1e-2, val_lr=1e-2,
                 batch_rets.append(ep_ret)
                 batch_lens.append(ep_len)
 
+                logger.save_episode_data([ epoch_num, ep_ret ])
+
                 # the weight for each logprob(a|s) is reward_to_go from t
                 batch_adv += list(reward_to_go(ep_rews))
                 batch_val_obs += list(reward_to_go(ep_rews))
@@ -164,7 +179,7 @@ def train(env_name='CartPole-v0', hidden_sizes=[32], pi_lr=1e-2, val_lr=1e-2,
 
     # training loop
     for i in range(epochs):
-        batch_pi_loss, batch_val_loss, batch_rets, batch_lens = train_one_epoch()
+        batch_pi_loss, batch_val_loss, batch_rets, batch_lens = train_one_epoch(i)
         print('epoch: %3d \t policy loss: %.3f \t value loss: %.3f \t return: %.3f \t ep_len: %.3f'%
                 (i, batch_pi_loss, batch_val_loss, np.mean(batch_rets), np.mean(batch_lens)))
 
@@ -176,5 +191,15 @@ if __name__ == '__main__':
     parser.add_argument('--pi_lr', type=float, default=1e-2)
     parser.add_argument('--val_lr', type=float, default=1e-2)
     args = parser.parse_args()
-    print('\nREINFORCE policy gradient with reward-to-go.\n')
-    train(env_name=args.env_name, render=args.render, pi_lr=args.pi_lr, val_lr=args.val_lr)
+    print('\nVanilla policy gradient with learned value function baseline.\n')
+
+    # Initialize logging
+    logger = Logger(args.env_name, ALGORITHM_NAME)
+
+    for j in range(REPEAT_TRAINING):
+        print('TRAINING RUN {}:'.format(j))
+        train(env_name=args.env_name, render=args.render, 
+            pi_lr=args.pi_lr, val_lr=args.val_lr, logger=logger)
+        logger.reset_episode_count()
+
+    logger.log_data()
