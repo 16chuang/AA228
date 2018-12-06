@@ -1,41 +1,23 @@
 """
 Mostly taken from https://github.com/openai/spinningup/blob/master/spinup/examples/pg_math/2_rtg_pg.py
 
-REINFORCE algorithm with modified weight function: 
-Changes the reward of entire trajectory in loss function to the discounted sum of just future 
-rewards. This maakes sense because when thinking about how to tweak the log probability 
-of an action, we don't care about the previous rewards in the trajectory since the action 
-only affects future rewards in the trajectory.
+REINFORCE algorithm with discounted future rewards for continuous action space: 
+Changes neural net to output Gaussian mean of action to take (instead of log probabilities
+of discrete actions).
 
-- Neural network: inputs = observations, outputs = log probabilities of action to take
+- Neural network: inputs = observations, outputs = mean
 - Loss function = gradient of expected return(policy)
                 = expectation over trajectories of: sum_t ( gradient(log p(a_t | s_t)) * future_reward(s_t, a_t) )
 - future_reward(s_t, a_t) = sum_{from t to end of episode} R(s_i, a_i, s_{i+1})
 
 Performance:
-For env_name='CartPole-v0', hidden_sizes=[32], lr=1e-2, epochs=50, batch_size=5000
-and discount=1:
-    Solves environment (reward 200) after 36 epochs
+For env_name='Pendulum-v0', hidden_sizes=[32], lr=1e-2, epochs=50, batch_size=5000
+and discount=1, log_std= -.5:
+    Starts at episode reward -1449.082, reaches episode reward -1249.907 after 50 epochs
 
-For env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2, epochs=50, batch_size=5000
-and discount=1:
-    Reaches episode reward of 321.188, 500.00 after 50 epochs => not consistent across runs
-
-For env_name='CartPole-v1', hidden_sizes=[32], lr=5e-3, epochs=50, batch_size=5000
-and discount=1:
-    Reaches episode reward of 360.000, 497.818 after 50 epochs
-
-For env_name='Acrobot-v1', hidden_sizes=[32], lr=1e-2, epochs=50, batch_size=5000
-and discount=1:
-    Reaches episode reward of -88.554 after 50 epochs
-
-For env_name='Acrobot-v1', hidden_sizes=[64], lr=1e-2, epochs=50, batch_size=5000
-and discount=1:
-    Reaches episode reward of -87.211 after 50 epochs
-
-For env_name='Acrobot-v1', hidden_sizes=[32,32], lr=1e-2, epochs=50, batch_size=5000
-and discount=1:
-    Reaches episode reward of -84.237 after 50 epochs
+For env_name='Pendulum-v0', hidden_sizes=[64,64], lr=1e-2, epochs=50, batch_size=5000
+and discount=1, log_std= -.5:
+    Starts at episode reward -1518.907, reaches episode reward -1452.193 after 50 epochs
 
 Turns out adding discount makes performance worse :/
 """
@@ -62,7 +44,15 @@ def reward_to_go(rews, discount=1):
         rtgs[i] = rews[i] + (discount * rtgs[i+1] if i+1 < n else 0)
     return rtgs
 
-def train(env_name='CartPole-v0', hidden_sizes=[32,32], lr=1e-2, 
+EPS = 1e-8
+# From OpenAI's spinup/algos/vpg/core.py
+#   Gaussian log-likelihood function 
+#   Why epsilon??
+def gaussian_likelihood(x, mu, log_std):
+    pre_sum = -0.5 * (((x-mu)/(tf.exp(log_std)+EPS))**2 + 2*log_std + np.log(2*np.pi))
+    return tf.reduce_sum(pre_sum, axis=1)
+
+def train(env_name='Pendulum-v0', hidden_sizes=[32], lr=1e-2, 
           epochs=50, batch_size=5000, render=False):
 
     # make environment, check spaces, get obs / act dims
@@ -70,24 +60,34 @@ def train(env_name='CartPole-v0', hidden_sizes=[32,32], lr=1e-2,
     env = gym.make(env_name)
     assert isinstance(env.observation_space, Box), \
         "This example only works for envs with continuous state spaces."
-    assert isinstance(env.action_space, Discrete), \
-        "This example only works for envs with discrete action spaces."
+    assert isinstance(env.action_space, Box), \
+        "This example only works for envs with continuous action spaces."
 
     obs_dim = env.observation_space.shape[0]
-    n_acts = env.action_space.n
+    act_dim = env.action_space.shape[0]
 
-    # ======== make core of POLICY NETWORK =====================================================================================
+    # ======== make core of GAUSSIAN POLICY NETWORK ============================================================================
     obs_ph = tf.placeholder(shape=(None, obs_dim), dtype=tf.float32)
-    logits = mlp(obs_ph, sizes=hidden_sizes+[n_acts])
+    act_ph = tf.placeholder(shape=(None, act_dim), dtype=tf.float32)
 
-    # make action selection op (outputs int actions, sampled from policy)
-    actions = tf.squeeze(tf.multinomial(logits=logits,num_samples=1), axis=1)
+    # Network for mean of action
+    mu = mlp(obs_ph, list(hidden_sizes)+[act_dim])
+    # Network for log std dev of action
+    log_std = tf.get_variable(name='log_std', initializer=-1.*np.ones(act_dim, dtype=np.float32))
+    std = tf.exp(log_std)
+
+    # Extract policy's output action
+    pi = mu + tf.random_normal(tf.shape(mu)) * std
+
+    # Log probabilities
+    log_probs = gaussian_likelihood(act_ph, mu, log_std) # Likelihood of observed actions in the provided episodes
+    log_probs_pi = gaussian_likelihood(pi, mu, log_std) # Likelihood of policy's choices of actions 
+
+    # Every step, get: action (value, and logprob)
+    get_action_ops = [pi, log_probs_pi]
 
     # ======== make LOSS FUNCTION whose gradient, for the right data, is policy gradient =======================================
     weights_ph = tf.placeholder(shape=(None,), dtype=tf.float32) # total reward of an episode, aka R(tau)
-    act_ph = tf.placeholder(shape=(None,), dtype=tf.int32)
-    action_masks = tf.one_hot(act_ph, n_acts) # matrix of |act_ph| one-hot rows and n_acts cols; row i has 1 at act_ph[i] index
-    log_probs = tf.reduce_sum(action_masks * tf.nn.log_softmax(logits), axis=1) # outputs vector whose elements are sum of rows = p(a | s)
     loss = -tf.reduce_mean(weights_ph * log_probs) # mean of all elements in log_probs * R(tau)
 
     # make train op
@@ -125,7 +125,8 @@ def train(env_name='CartPole-v0', hidden_sizes=[32,32], lr=1e-2,
 
             # act in the environment: get action from TF graph
             #   actions = output of NN, obs_ph = input
-            act = sess.run(actions, {obs_ph: obs.reshape(1,-1)})[0]
+            act, log_prob_t = sess.run(get_action_ops, {obs_ph: obs.reshape(1,-1)})
+            act = act[0]
             obs, rew, done, _ = env.step(act)
 
             # save action, reward
@@ -158,7 +159,6 @@ def train(env_name='CartPole-v0', hidden_sizes=[32,32], lr=1e-2,
                                     act_ph: np.array(batch_acts),
                                     weights_ph: np.array(batch_weights)
                                  })
-
         return batch_loss, batch_rets, batch_lens
 
     # training loop
@@ -170,7 +170,7 @@ def train(env_name='CartPole-v0', hidden_sizes=[32,32], lr=1e-2,
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', '--env', type=str)#, default='CartPole-v0')
+    parser.add_argument('--env_name', '--env', type=str)#, default='Pendulum-v0')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--lr', type=float, default=1e-2)
     args = parser.parse_args()

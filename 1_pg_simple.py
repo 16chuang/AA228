@@ -11,7 +11,10 @@ For env_name='CartPole-v0', hidden_sizes=[32], lr=1e-2, epochs=50, batch_size=50
     Solves environment (reward 200) after 43 epochs
 
 For env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2, epochs=50, batch_size=5000:
-    Reaches episode reward of 150 after 50 epochs
+    Reaches episode reward of 453.917 after 50 epochs
+
+For env_name='Acrobot-v1', hidden_sizes=[32], lr=1e-2, epochs=50, batch_size=5000:
+    Reaches episode reward of -98.157 after 50 epochs
 """
 
 import tensorflow as tf
@@ -25,10 +28,11 @@ def mlp(x, sizes, activation=tf.tanh, output_activation=None):
         x = tf.layers.dense(x, units=size, activation=activation)
     return tf.layers.dense(x, units=sizes[-1], activation=output_activation)
 
-def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2, 
+def train(env_name='CartPole-v0', hidden_sizes=[32], lr=1e-2, 
           epochs=50, batch_size=5000, render=False):
 
     # make environment, check spaces, get obs / act dims
+    print("Making env {}".format(env_name))
     env = gym.make(env_name)
     assert isinstance(env.observation_space, Box), \
         "This example only works for envs with continuous state spaces."
@@ -132,7 +136,7 @@ def train(env_name='CartPole-v1', hidden_sizes=[32], lr=1e-2,
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_name', '--env', type=str, default='CartPole-v0')
+    parser.add_argument('--env_name', '--env', type=str)#, default='CartPole-v0')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--lr', type=float, default=1e-2)
     args = parser.parse_args()
