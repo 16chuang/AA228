@@ -2,16 +2,17 @@ import gym.spaces
 import numpy as np
 
 from cart_pole_controller import CartPoleController, BaselineController, QLearningController
+from acrobot_controller import AcrobotController, BaselineAcrobotController
 
 np.set_printoptions(precision=2,suppress=True)
 
-env = gym.make('CartPole-v1')
+env = gym.make('Acrobot-v1')
 
 # Constants
-MAX_TIMESTEPS = 200
+MAX_TIMESTEPS = 500
 
 def main():
-	crappy_controller = BaselineController(Kp=1, Kd=0.5)
+	crappy_controller = BaselineAcrobotController(Kp=1, Kd=6, max_alpha=np.pi/2)
 	test_controller(crappy_controller)
 
 """
