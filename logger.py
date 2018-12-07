@@ -21,8 +21,18 @@ class Logger(object):
 					raise
 
 		self.columns = columns
+		self.val_cols = ['theta1', 'theta2', 'theta1dot', 'theta2dot', 'time', 'value']
 		self.data = []
+		self.values = []
 		self.episode_counter = 0
+
+	def save_value(self, row):
+		self.values.append(dict(zip(self.val_cols, row)))
+
+	def log_values(self):
+		logfile = "{}_values.csv".format(self.filename)
+		df = pd.DataFrame(self.values, columns=self.val_cols)
+		df.to_csv(logfile)
 
 	def log_params(self, params):
 		logfile = open("{}.params".format(self.filename), 'w+')

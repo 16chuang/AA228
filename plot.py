@@ -17,13 +17,16 @@ ENV_FILES = {
 		'PG basic': 'data/CartPole-v1/1_pg_simple_1544113163.csv',
 		'Future reward': 'data/CartPole-v1/2_pg_future_reward_1544115237.csv',
 		'With baseline': 'data/CartPole-v1/3_pg_with_baseline_1544117249.csv',
-		'With GAE': 'data/CartPole-v1/4_pg_gae_1544119389.csv',
+		'With GAE, gam=.99,lam=.95': 'data/CartPole-v1/4_pg_gae_1544119389.csv',
+		'With value horizon': 'data/CartPole-v1/5_pg_value_horizon_1544135663.csv',
+		# 'With GAE, gam=.98,lam=.95': 'data/CartPole-v1/4_pg_gae_1544134627.csv',
 	}, 
 	'Acrobot-v1': {
 		'PG basic': 'data/Acrobot-v1/1_pg_simple_1544113774.csv',
 		'Future reward': 'data/Acrobot-v1/2_pg_future_reward_1544115746.csv',
 		'With baseline': 'data/Acrobot-v1/3_pg_with_baseline_1544117832.csv',
 		'With GAE': 'data/Acrobot-v1/4_pg_gae_1544119937.csv',
+		'With value horizon': 'data/Acrobot-v1/5_pg_value_horizon_1544135663.csv',
 	}
 }
 
@@ -34,7 +37,7 @@ def plot_one_file(filename, plot_episode=False):
 	assert('episode' in df.columns and 'epoch' in df.columns and 'reward' in df.columns)
 
 	x = 'episode' if plot_episode else 'epoch'
-	sns.lineplot(x=x, y="reward", data=df, hue='', ci='sd')
+	sns.lineplot(x=x, y="reward", data=df, hue='')#, ci='sd')
 	plt.show()
 
 def plot_one_env(env_name, files_dict, plot_episode=False):
@@ -49,6 +52,7 @@ def plot_one_env(env_name, files_dict, plot_episode=False):
 
 	x = 'episode' if plot_episode else 'epoch'
 	sns.lineplot(x=x, y="reward", data=all_data, hue='algorithm')#, ci='sd')
+	plt.title(env_name)
 	plt.show()
 
 if __name__ == "__main__":
