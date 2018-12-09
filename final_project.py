@@ -34,32 +34,61 @@ from collections import deque
 
 from cart_pole_controller import CartPoleController, BaselineController
 from q_learning_controller import QLearningController
+from q_learning_acrobot import QLearningControllerAcrobot
+
+from logger import Logger
 
 np.set_printoptions(precision=2,suppress=True)
 
-env = gym.make('CartPole-v1')
+env_name = 'Acrobot-v1'
+env = gym.make(env_name)
 
 # Constants
 MAX_TIMESTEPS 		= 500
 NUM_TEST_EPISODES 	= 100
 SOLVED_REWARD 		= 450
+NUM_TRAIN_EPISODES	= 10000
 
 def main():
+	# theta_range = { 
+	# 	'min': -.2, 
+	# 	'max': .2, 
+	# 	'num_bins': 20
+	# }
+	# dtheta_range = {
+	# 	'min': -1.0,
+	# 	'max': 1.0,
+	# 	'num_bins': 6
+	# }
 	theta_range = { 
-		'min': -.2, 
-		'max': .2, 
-		'num_bins': 15
+		'min': -1, 
+		'max': 1, 
+		'num_bins': 10
 	}
 	dtheta_range = {
-		'min': -1.0,
-		'max': 1.0,
-		'num_bins': 15
+		'min': -2.0,
+		'max': 2.0,
+		'num_bins': 6
 	}
-	controller = QLearningController(theta_range=theta_range, dtheta_range=dtheta_range, learning_rate=.1, discount=1)
-	# train_controller_until_solved(controller)
-	train_controller_for_episodes(controller, num_episodes=2000)
+	# controller = QLearningController(theta_range=theta_range, dtheta_range=dtheta_range, learning_rate=.1, discount=1)
+	controller = QLearningControllerAcrobot(theta_range=theta_range, 
+		dtheta_range=dtheta_range, learning_rate=.1, discount=1)
+	
+	logger = Logger(env_name=env_name, algorithm_name='0_QLearning')
+	logger.log_params([theta_range, dtheta_range, ])
 
-	test_controller(controller)
+	# train_controller_until_solved(controller)
+	# train_controller_for_episodes(controller, num_episodes=NUM_TRAIN_EPISODES, logger=logger)
+	
+	for i in range(50):
+		batch_rets = train_controller_one_epoch(controller, i, logger)
+		print('epoch: %3d \t return: %.3f'%
+                (i, np.mean(batch_rets)))
+		logger.reset_episode_count()
+
+	logger.log_data()
+
+	# test_controller(controller)
 
 """
 Runs one episode using the given CartPoleController until termination.
@@ -103,6 +132,35 @@ def run_episode(controller, learning):
 	env.close()
 	return timesteps+1, total_reward
 
+def train_controller_one_epoch(controller, epoch_num, logger, batch_size=5000):
+	batch_rewards = []
+	num_obs = 0
+
+	state = env.reset()
+	done = False
+	ep_rewards = 0
+
+	while True:
+		action = controller.calc_response(state, True)
+		prev_state = state
+		state, reward, done, _ = env.step(action)
+		ep_rewards += reward
+		num_obs += 1
+
+		# Update controller with newly observed info
+		controller.update(prev_state, action, reward, state)
+
+		if done:
+			batch_rewards.append(ep_rewards)
+			logger.save_episode_data([epoch_num, ep_rewards])
+
+			state, ep_rewards, done = env.reset(), 0, False
+
+			if num_obs > batch_size:
+				break
+
+	return batch_rewards
+
 """
 Trains a given CartPoleController for some number of episodes. Prints the average reward over
 all training episodes.
@@ -110,12 +168,14 @@ all training episodes.
 Inputs:
 	controller 			CartPoleController (BaseLineController or QLearningController)
 """
-def train_controller_for_episodes(controller, num_episodes):
+def train_controller_for_episodes(controller, num_episodes, logger):
 	print("\nLET THE TRAINING BEGIN...")
 	avg_reward = 0
+	data = []
 
 	for i in range(num_episodes):
 		timesteps, reward = run_episode(controller, learning=True)
+		logger.save_episode_data([0, reward])
 		avg_reward += reward
 		if i % (num_episodes/10) == 0:
 			print("Episode {} finished after {} timesteps with total reward {}".format(i, timesteps+1, reward))

@@ -33,7 +33,7 @@ from gym.spaces import Discrete, Box
 from logger import Logger
 
 ALGORITHM_NAME = "5_pg_value_horizon"
-REPEAT_TRAINING = 1
+REPEAT_TRAINING = 5
 MAX_TIMESTEPS = {
     'CartPole-v0': 200,
     'CartPole-v1': 500,
@@ -219,7 +219,7 @@ def train(env_name, logger, filename, hidden_sizes=[32], pi_lr=1e-2, val_lr=1e-2
                             logger.save_value([theta1, theta2, theta1dot, theta2dot, t, val[0]])
         logger.log_values()
 
-    calculate_values()
+    # calculate_values()
     
 
 if __name__ == '__main__':

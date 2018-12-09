@@ -51,5 +51,6 @@ class Logger(object):
 	def log_data(self):
 		logfile = "{}.csv".format(self.filename)
 		self.df = pd.DataFrame(self.data, columns=self.columns)
+		print(self.df['reward'].mean())
 		self.df.to_csv(logfile)
 		

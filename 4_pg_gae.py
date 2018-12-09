@@ -42,7 +42,7 @@ from gym.spaces import Discrete, Box
 from logger import Logger
 
 ALGORITHM_NAME = "4_pg_gae"
-REPEAT_TRAINING = 5
+REPEAT_TRAINING = 3
 
 def mlp(x, sizes, activation=tf.tanh, output_activation=None):
     # Build a feedforward neural network.
@@ -64,10 +64,13 @@ def reward_to_go(rews, discount=1):
 def calc_advantage(rewards, values, gamma, lam):
     assert(len(rewards) == len(values))
     n = len(rewards)
+
     adv = np.zeros_like(rewards)
+    deltas = np.zeros_like(rewards)
     for i in reversed(range(n)):
-        adv[i] = rewards[i] - values[i] + (gamma * values[i+1] if i+1 < n else 0)
-        adv[i] *= gamma*lam
+        deltas[i] = -values[i] + rewards[i] + gamma*(values[i+1] if i+1 < n else 0)
+    for i in reversed(range(n)):
+        adv[i] = deltas[i] + gamma*lam*(adv[i+1] if i+1 < n else 0)
     return adv
 
 def train(env_name, logger, hidden_sizes=[32], pi_lr=1e-2, val_lr=1e-2,
@@ -221,19 +224,22 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print('\nVanilla policy gradient with generalized advantage estimation.\n')
 
-    # Initialize logging
-    logger = Logger(args.env_name, ALGORITHM_NAME)
+    for gamma in [.98]: # np.arange(.95,1,.01):
+        for lamb in [.94]: #np.arange(.93,.99,.01):
+            print('gamma={}, lambda={}'.format(gamma, lamb))
+            # Initialize logging
+            logger = Logger(args.env_name, ALGORITHM_NAME)
 
-    for j in range(REPEAT_TRAINING):
-        print('TRAINING RUN {}:'.format(j))
-        train(env_name=args.env_name, 
-          render=args.render, 
-          pi_lr=args.pi_lr, 
-          val_lr=args.val_lr, 
-          gae_gamma=args.gae_gamma, 
-          gae_lambda=args.gae_lambda,
-          logger=logger)
-        logger.reset_episode_count()
+            for j in range(REPEAT_TRAINING):
+                print('TRAINING RUN {}:'.format(j))
+                train(env_name=args.env_name, 
+                  render=args.render, 
+                  pi_lr=args.pi_lr, 
+                  val_lr=args.val_lr, 
+                  gae_gamma=gamma, 
+                  gae_lambda=lamb,
+                  logger=logger)
+                logger.reset_episode_count()
 
-    logger.log_data()
+            logger.log_data()
     
